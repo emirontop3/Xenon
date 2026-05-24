@@ -1,0 +1,44 @@
+name: Build and Release Xenon APK
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: gradle assembleDebug
+
+      - name: Generate tag
+        id: tagger
+        run: |
+          TAG="apk-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tagger.outputs.tag }}
+          name: Xenon APK ${{ steps.tagger.outputs.tag }}
+          body: |
+            Otomatik APK release.
+            Commit: ${{ github.sha }}
+          files: app/build/outputs/apk/debug/app-debug.apk
