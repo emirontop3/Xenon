@@ -46,8 +46,8 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 searchInput.setText(url ?: "")
-                backButton.alpha = if (webView.canGoBack()) 1f else 0.45f
-                forwardButton.alpha = if (webView.canGoForward()) 1f else 0.45f
+                backButton.alpha = if (webView.canGoBack()) 1f else 0.5f
+                forwardButton.alpha = if (webView.canGoForward()) 1f else 0.5f
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -95,7 +95,11 @@ class MainActivity : AppCompatActivity() {
             loadWithOverviewMode = true
             builtInZoomControls = true
             displayZoomControls = false
-            userAgentString = if (desktopMode) DESKTOP_USER_AGENT else WebSettings.getDefaultUserAgent(this@MainActivity)
+            userAgentString = if (desktopMode) {
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            } else {
+                WebSettings.getDefaultUserAgent(this@MainActivity)
+            }
         }
     }
 
@@ -104,23 +108,17 @@ class MainActivity : AppCompatActivity() {
         if (query.isBlank()) return
         if (handleInternalRoute(query)) return
 
-        val target = when {
-            query.startsWith("http://") || query.startsWith("https://") -> query
-            isDomainLike(query) -> "https://$query"
-            else -> activeSearchTemplate().format(urlEncode(query))
+        if (handleInternalRoute(query)) return
+
+        val target = if (query.startsWith("http://") || query.startsWith("https://")) {
+            query
+        } else if (query.toUri().scheme != null && '.' in query) {
+            "https://$query"
+        } else {
+            "${prefs.getString("search_engine", "https://duckduckgo.com/?q=%s")}".format(query.replace(" ", "+"))
         }
 
         webView.loadUrl(target)
-    }
-
-    private fun isDomainLike(text: String): Boolean {
-        return !text.contains(" ") && text.contains('.') && !text.contains("://")
-    }
-
-    private fun urlEncode(query: String): String = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-
-    private fun activeSearchTemplate(): String {
-        return prefs.getString("search_engine", DEFAULT_SEARCH_TEMPLATE) ?: DEFAULT_SEARCH_TEMPLATE
     }
 
     private fun handleInternalRoute(rawUrl: String): Boolean {
@@ -139,9 +137,6 @@ class MainActivity : AppCompatActivity() {
             }
             "xenon://set/engine/bing" -> {
                 saveEngine("https://www.bing.com/search?q=%s", "Bing"); true
-            }
-            "xenon://set/engine/startpage" -> {
-                saveEngine("https://www.startpage.com/sp/search?query=%s", "Startpage"); true
             }
             "xenon://set/js/on" -> { saveBool("javascript_enabled", true, "JavaScript açık"); true }
             "xenon://set/js/off" -> { saveBool("javascript_enabled", false, "JavaScript kapalı"); true }
@@ -167,86 +162,72 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openHome() {
-        webView.loadDataWithBaseURL("xenon://home", homeHtml(), "text/html", "UTF-8", null)
+        webView.loadDataWithBaseURL(
+            "xenon://home",
+            homeHtml(),
+            "text/html",
+            "UTF-8",
+            null
+        )
         searchInput.setText("xenon://home")
     }
 
     private fun openSettings() {
-        webView.loadDataWithBaseURL("xenon://settings", settingsHtml(), "text/html", "UTF-8", null)
+        webView.loadDataWithBaseURL(
+            "xenon://settings",
+            settingsHtml(),
+            "text/html",
+            "UTF-8",
+            null
+        )
         searchInput.setText("xenon://settings")
     }
 
     private fun homeHtml(): String = """
-        <html>
-          <head>
-            <meta name='viewport' content='width=device-width, initial-scale=1' />
-            <style>
-              :root{--bg:#060b16;--panel:#0e172a;--soft:#1e293b;--line:#334155;--txt:#e2e8f0;--muted:#94a3b8;--accent:#60a5fa;}
-              body{margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-              .wrap{max-width:760px;margin:0 auto}
-              .panel{background:linear-gradient(180deg,#0f172a,#0b1220);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}
-              .title{font-size:24px;font-weight:650;margin:0 0 8px}
-              .muted{color:var(--muted);font-size:14px;line-height:1.5}
-              .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-              .btn{display:inline-block;padding:10px 14px;border-radius:10px;background:#111827;border:1px solid #2c3b56;color:var(--txt);text-decoration:none}
-              .btn.primary{background:var(--accent);color:#071226;border-color:#7bb7ff;font-weight:600}
-              .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-              .chip{padding:12px;border:1px solid #2b3a55;border-radius:10px;background:#0b1528}
-            </style>
-          </head>
-          <body>
-            <div class='wrap'>
-              <div class='panel'>
-                <p class='title'>Xenon</p>
-                <p class='muted'>Hızlı ve sade gezinme deneyimi. Arama kutusuna kelime yaz, URL yaz veya kısa yolları kullan.</p>
-                <div class='row'>
-                  <a class='btn primary' href='xenon://settings'>Ayarları Aç</a>
-                  <a class='btn' href='https://duckduckgo.com'>Aramaya Başla</a>
-                </div>
-              </div>
-              <div class='grid'>
-                <div class='chip'><b>Bilgin VPN</b><p class='muted'>Gizlilik odaklı bağlantı katmanı için ayrılmış alan.</p></div>
-                <div class='chip'><b>Hızlı Erişim</b><p class='muted'>GitHub · Wikipedia · Hacker News</p></div>
-              </div>
-            </div>
-          </body>
-        </html>
+        <html><head><meta name='viewport' content='width=device-width, initial-scale=1' />
+        <style>
+        body{font-family:sans-serif;background:linear-gradient(180deg,#061128,#0d2248);color:#e8f0ff;padding:24px}
+        .card{background:#101f3dcc;border:1px solid #66a6ff55;border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 8px 30px #00000050}
+        a{display:inline-block;margin:6px 8px 6px 0;padding:10px 14px;border-radius:12px;background:#3a7bfd;color:white;text-decoration:none}
+        h1{margin-top:0} .muted{opacity:.8}
+        </style></head><body>
+        <div class='card'><h1>⚛ Xenon Home</h1><p class='muted'>Hydrogen tarzı sade, hızlı ve modern arama deneyimi.</p>
+        <a href='xenon://settings'>Ayarlar</a>
+        <a href='https://duckduckgo.com'>Aramaya Başla</a></div>
+        <div class='card'><h3>Bilgin VPN</h3><p>Gizlilik odaklı gezinti modu. (Bilgilendirme kartı)</p></div>
+        <div class='card'><h3>Hızlı Linkler</h3>
+        <a href='https://news.ycombinator.com'>Hacker News</a><a href='https://github.com'>GitHub</a><a href='https://www.wikipedia.org'>Wikipedia</a></div>
+        </body></html>
     """.trimIndent()
 
     private fun settingsHtml(): String {
-        val engine = activeSearchTemplate()
-        fun mark(condition: Boolean) = if (condition) "●" else "○"
+        val engine = prefs.getString("search_engine", "https://duckduckgo.com/?q=%s") ?: ""
+        fun mark(condition: Boolean) = if (condition) "✅" else "⬜"
 
         return """
             <html><head><meta name='viewport' content='width=device-width, initial-scale=1'/>
             <style>
-            :root{--bg:#060b16;--panel:#0e172a;--line:#334155;--txt:#e2e8f0;--muted:#94a3b8;--accent:#60a5fa;}
-            body{margin:0;padding:18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-            .panel{background:linear-gradient(180deg,#0f172a,#0b1220);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px}
-            .title{margin:0 0 10px;font-size:22px}
-            .row{margin:8px 0}
-            a{display:inline-block;margin:6px 6px 0 0;padding:8px 11px;border-radius:9px;background:#111827;border:1px solid #2c3b56;color:var(--txt);text-decoration:none}
-            .active{border-color:#7bb7ff;background:#12233e}
-            .muted{color:var(--muted);font-size:13px}
+            body{font-family:sans-serif;background:#07162f;color:#e8f0ff;padding:22px}
+            .card{background:#13264bcc;border:1px solid #68a1ff44;border-radius:14px;padding:14px;margin-bottom:12px}
+            a{display:inline-block;margin:6px 6px 0 0;padding:8px 12px;border-radius:10px;background:#4a88ff;color:#fff;text-decoration:none}
             </style></head><body>
-            <h2 class='title'>Xenon Settings</h2>
-            <div class='panel'><b>Arama Motoru</b><div class='muted'>Varsayılan arama sağlayıcını seç.</div><div class='row'>
-            <a class='${if (engine.contains("google")) "active" else ""}' href='xenon://set/engine/google'>${mark(engine.contains("google"))} Google</a>
-            <a class='${if (engine.contains("duckduckgo")) "active" else ""}' href='xenon://set/engine/ddg'>${mark(engine.contains("duckduckgo"))} DuckDuckGo</a>
-            <a class='${if (engine.contains("bing")) "active" else ""}' href='xenon://set/engine/bing'>${mark(engine.contains("bing"))} Bing</a>
-            <a class='${if (engine.contains("startpage")) "active" else ""}' href='xenon://set/engine/startpage'>${mark(engine.contains("startpage"))} Startpage</a>
-            </div></div>
+            <h2>Xenon Settings</h2>
+            <div class='card'><b>Arama Motoru</b><br/>
+            ${mark(engine.contains("google"))} <a href='xenon://set/engine/google'>Google</a>
+            ${mark(engine.contains("duckduckgo"))} <a href='xenon://set/engine/ddg'>DuckDuckGo</a>
+            ${mark(engine.contains("bing"))} <a href='xenon://set/engine/bing'>Bing</a></div>
 
-            <div class='panel'><b>Gezinme Tercihleri</b><div class='row'>
-            <div>${mark(prefs.getBoolean("javascript_enabled", true))} JavaScript <a href='xenon://set/js/on'>Aç</a><a href='xenon://set/js/off'>Kapat</a></div>
-            <div>${mark(prefs.getBoolean("dom_storage_enabled", true))} DOM Storage <a href='xenon://set/dom/on'>Aç</a><a href='xenon://set/dom/off'>Kapat</a></div>
-            <div>${mark(prefs.getBoolean("desktop_mode", false))} Masaüstü Modu <a href='xenon://set/desktop/on'>Aç</a><a href='xenon://set/desktop/off'>Kapat</a></div>
-            </div></div>
+            <div class='card'><b>Gezinme Ayarları</b><br/>
+            ${mark(prefs.getBoolean("javascript_enabled", true))} JavaScript
+            <a href='xenon://set/js/on'>Aç</a><a href='xenon://set/js/off'>Kapat</a><br/>
+            ${mark(prefs.getBoolean("dom_storage_enabled", true))} DOM Storage
+            <a href='xenon://set/dom/on'>Aç</a><a href='xenon://set/dom/off'>Kapat</a><br/>
+            ${mark(prefs.getBoolean("desktop_mode", false))} Masaüstü Modu
+            <a href='xenon://set/desktop/on'>Aç</a><a href='xenon://set/desktop/off'>Kapat</a></div>
 
-            <div class='panel'><b>Dahili Sayfalar</b><div class='row'>
+            <div class='card'><b>Rotalar</b><br/>
             <a href='xenon://home'>xenon://home</a>
-            <a href='xenon://settings'>xenon://settings</a>
-            </div></div>
+            <a href='xenon://settings'>xenon://settings</a></div>
             </body></html>
         """.trimIndent()
     }
