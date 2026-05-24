@@ -15,8 +15,7 @@ import android.widget.ImageButton
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import androidx.core.net.toUri
 
 class MainActivity : AppCompatActivity() {
 
@@ -106,7 +105,6 @@ class MainActivity : AppCompatActivity() {
     private fun runSearch(input: String) {
         val query = input.trim()
         if (query.isBlank()) return
-        if (handleInternalRoute(query)) return
 
         if (handleInternalRoute(query)) return
 
@@ -234,11 +232,5 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
-    }
-
-    companion object {
-        private const val DEFAULT_SEARCH_TEMPLATE = "https://duckduckgo.com/?q=%s"
-        private const val DESKTOP_USER_AGENT =
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
 }
